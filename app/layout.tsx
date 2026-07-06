@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Poppins } from "next/font/google";
+import { Nav } from "@/components/Nav";
 import "./globals.css";
 
 const poppins = Poppins({
@@ -28,6 +29,7 @@ export default function RootLayout({
       <body
         className={`${poppins.variable} ${inter.variable} font-sans antialiased`}
       >
+        <Nav />
         {children}
       </body>
     </html>
