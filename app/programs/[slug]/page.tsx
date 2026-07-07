@@ -4,13 +4,27 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { SectionLabel } from "@/components/SectionLabel";
+import { HierarchySidebar } from "@/components/program/HierarchySidebar";
+import { ResourcesSection } from "@/components/program/ResourcesSection";
 import { CitationCard, TheRecord } from "@/components/program/TheRecord";
 import { TermsDisplay } from "@/components/program/TermsDisplay";
 import { RecentlyChangedIndicator } from "@/components/ui/RecentlyChangedIndicator";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { StubBadge } from "@/components/ui/StubBadge";
 import { VerificationCallout } from "@/components/ui/VerificationCallout";
 import { formatDate, formatLabel, isRecentlyChanged } from "@/lib/program-format";
-import type { ProgramDetail, ProgramVersion } from "@/lib/program-types";
+import {
+  PUBLISHED_REVIEW_STATUSES,
+  type ProgramDetail,
+  type ProgramHierarchy,
+  type ProgramHierarchyRow,
+  type ProgramResource,
+  type ProgramVersion,
+} from "@/lib/program-types";
+
+function isPublishedVersion(version: ProgramVersion): boolean {
+  return PUBLISHED_REVIEW_STATUSES.includes(version.review_status);
+}
 import { supabase } from "@/lib/supabase";
 
 type FetchError = {
@@ -81,6 +95,8 @@ export default function ProgramPage() {
   const slug = params.slug;
 
   const [program, setProgram] = useState<ProgramDetail | null>(null);
+  const [hierarchy, setHierarchy] = useState<ProgramHierarchy | null>(null);
+  const [resources, setResources] = useState<ProgramResource[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<FetchError | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -98,7 +114,8 @@ export default function ProgramPage() {
             status,
             technology,
             secondary_context,
-            jurisdictions ( name ),
+            parent_program_id,
+            jurisdictions ( name, abbreviation ),
             program_categories ( label ),
             program_versions (
               id,
@@ -109,6 +126,8 @@ export default function ProgramPage() {
               change_reason,
               confidence_flag,
               conflict_notes,
+              review_status,
+              status,
               citations (
                 id,
                 title,
@@ -134,9 +153,73 @@ export default function ProgramPage() {
               hint: error.hint,
             });
           }
-        } else {
-          setProgram(data as unknown as ProgramDetail);
+          return;
         }
+
+        const prog = data as unknown as ProgramDetail;
+
+        // A program is only public once it has a current version that a human
+        // has approved (or that was auto-published). A program whose only
+        // current version is pending_review or rejected stays hidden.
+        const hasPublishedCurrentVersion = prog.program_versions?.some(
+          (version) =>
+            version.effective_end === null &&
+            version.status === "active" &&
+            isPublishedVersion(version)
+        );
+        if (!hasPublishedCurrentVersion) {
+          setNotFound(true);
+          return;
+        }
+
+        // Only the approved/auto-published lineage is shown publicly — pending
+        // or rejected drafts never surface in the terms, record, or citations.
+        prog.program_versions = (prog.program_versions ?? []).filter(
+          isPublishedVersion
+        );
+
+        // Resolve hierarchy (one level: top-level parent + its children) and
+        // internal resources for this specific program.
+        const topLevelParentId = prog.parent_program_id ?? prog.id;
+        const [hierarchyResult, resourcesResult] = await Promise.all([
+          supabase
+            .from("program_hierarchy")
+            .select("*")
+            .eq("parent_id", topLevelParentId),
+          supabase
+            .from("program_resources")
+            .select("id, program_id, resource_type, title, url, notes")
+            .eq("program_id", prog.id)
+            .order("created_at", { ascending: true }),
+        ]);
+
+        const rows =
+          (hierarchyResult.data as unknown as ProgramHierarchyRow[]) ?? [];
+        const childLinks = rows
+          .filter((row) => row.child_id)
+          .map((row) => ({
+            id: row.child_id as string,
+            name: row.child_name as string,
+            slug: row.child_slug as string,
+          }));
+        const parentRow = rows[0];
+        const resolvedHierarchy: ProgramHierarchy =
+          prog.parent_program_id && parentRow
+            ? {
+                parent: {
+                  id: parentRow.parent_id,
+                  name: parentRow.parent_name,
+                  slug: parentRow.parent_slug,
+                },
+                children: childLinks,
+              }
+            : { parent: null, children: childLinks };
+
+        setProgram(prog);
+        setHierarchy(resolvedHierarchy);
+        setResources(
+          (resourcesResult.data as unknown as ProgramResource[]) ?? []
+        );
       } catch (err) {
         console.error("Fetch error:", err);
         setError({
@@ -178,6 +261,20 @@ export default function ProgramPage() {
   const recentlyChanged = currentVersion
     ? isRecentlyChanged(currentVersion.effective_start)
     : false;
+
+  const isStub = currentVersion?.terms?.stub === true;
+
+  const isModule = Boolean(program?.parent_program_id);
+  const childCount = hierarchy?.children.length ?? 0;
+  const isParentWithChildren = !isModule && childCount > 0;
+
+  const showSidebar = Boolean(hierarchy && (isModule || childCount > 0));
+
+  // Resources appear on structurally complex programs (a parent with modules,
+  // or a module itself) even when empty; standalone simple programs only show
+  // the section once they actually have resources attached.
+  const showResources =
+    isParentWithChildren || isModule || resources.length > 0;
 
   if (loading) {
     return (
@@ -243,7 +340,11 @@ export default function ProgramPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <main className="mx-auto max-w-4xl px-8 py-16 sm:px-12 sm:py-24">
+      <main
+        className={`mx-auto ${
+          showSidebar ? "max-w-6xl" : "max-w-4xl"
+        } px-8 py-16 sm:px-12 sm:py-24`}
+      >
         <Link
           href="/"
           className="mb-8 inline-block font-heading text-sm font-bold text-primary hover:underline"
@@ -251,73 +352,111 @@ export default function ProgramPage() {
           ← Back to Programs
         </Link>
 
-        <header className="mb-16">
-          <SectionLabel>
-            {program.program_categories?.label ?? "Program"}
-          </SectionLabel>
-          <h1 className="font-heading text-4xl font-bold text-heading sm:text-5xl">
-            {program.name}
-          </h1>
-          <div className="mt-6 flex flex-wrap items-center gap-3">
-            {program.jurisdictions?.name && (
-              <span className="rounded-lg bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-                {program.jurisdictions.name}
-              </span>
-            )}
-            {program.technology.map((tech) => (
-              <span
-                key={tech}
-                className="rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium text-gray-600"
-              >
-                {formatLabel(tech)}
-              </span>
-            ))}
-            <StatusBadge status={program.status} />
-            {recentlyChanged && <RecentlyChangedIndicator />}
-          </div>
-        </header>
-
-        {currentVersion && (
-          <section className="mb-16">
-            <SectionLabel>Current Terms</SectionLabel>
-            {currentVersionNeedsVerification && (
-              <VerificationCallout title="Part of this information has not been fully verified — see notes below">
-                {currentVersion.conflict_notes && (
-                  <p className="whitespace-pre-wrap">
-                    {currentVersion.conflict_notes}
-                  </p>
-                )}
-              </VerificationCallout>
-            )}
-            <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-lg">
-              <p className="font-heading text-2xl font-bold text-heading">
-                {currentVersion.value_summary}
-              </p>
-              <div className="mt-8">
-                <TermsDisplay terms={currentVersion.terms} />
-              </div>
+        <div className={showSidebar ? "lg:flex lg:gap-12" : ""}>
+          {showSidebar && hierarchy && (
+            <div className="mb-10 lg:mb-0 lg:w-72 lg:shrink-0">
+              <HierarchySidebar hierarchy={hierarchy} currentSlug={program.slug} />
             </div>
-          </section>
-        )}
+          )}
 
-        {program.secondary_context && (
-          <section className="mb-16">
-            <SectionLabel>Additional Context</SectionLabel>
-            <CollapsibleContext content={program.secondary_context} />
-          </section>
-        )}
+          <div className={showSidebar ? "min-w-0 lg:flex-1" : ""}>
+            <header className="mb-16">
+              <SectionLabel>
+                {program.program_categories?.label ?? "Program"}
+              </SectionLabel>
+              <h1 className="font-heading text-4xl font-bold text-heading sm:text-5xl">
+                {program.name}
+              </h1>
+              <div className="mt-6 flex flex-wrap items-center gap-3">
+                {program.jurisdictions?.name &&
+                  (program.jurisdictions.abbreviation ? (
+                    <Link
+                      href={`/jurisdictions/${program.jurisdictions.abbreviation}`}
+                      className="rounded-lg bg-primary/10 px-3 py-1 text-sm font-medium text-primary transition-colors hover:bg-primary/20"
+                    >
+                      {program.jurisdictions.name}
+                    </Link>
+                  ) : (
+                    <span className="rounded-lg bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
+                      {program.jurisdictions.name}
+                    </span>
+                  ))}
+                {program.technology.map((tech) => (
+                  <span
+                    key={tech}
+                    className="rounded-lg bg-gray-100 px-3 py-1 text-sm font-medium text-gray-600"
+                  >
+                    {formatLabel(tech)}
+                  </span>
+                ))}
+                <StatusBadge status={program.status} />
+                {isStub && <StubBadge />}
+                {recentlyChanged && <RecentlyChangedIndicator />}
+              </div>
+            </header>
 
-        {sortedVersions.length > 0 && (
-          <section className="mb-16">
-            <SectionLabel>The Record</SectionLabel>
-            <TheRecord versions={sortedVersions} />
-          </section>
-        )}
+            {currentVersion && (
+              <section className="mb-16">
+                <SectionLabel>Current Terms</SectionLabel>
+                {isStub && (
+                  <div className="mb-6 rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-6 py-5">
+                    <p className="font-heading text-sm font-bold text-gray-600">
+                      This program is a stub — not yet fully researched
+                    </p>
+                    <p className="mt-2 text-sm text-gray-500">
+                      The details below are preliminary and incomplete. Treat
+                      them as a placeholder until this entry has been fully
+                      researched.
+                    </p>
+                  </div>
+                )}
+                {currentVersionNeedsVerification && (
+                  <VerificationCallout title="Part of this information has not been fully verified — see notes below">
+                    {currentVersion.conflict_notes && (
+                      <p className="whitespace-pre-wrap">
+                        {currentVersion.conflict_notes}
+                      </p>
+                    )}
+                  </VerificationCallout>
+                )}
+                <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-lg">
+                  <p className="font-heading text-2xl font-bold text-heading">
+                    {currentVersion.value_summary}
+                  </p>
+                  <div className="mt-8">
+                    <TermsDisplay terms={currentVersion.terms} />
+                  </div>
+                </div>
+              </section>
+            )}
 
-        <section>
-          <SectionLabel>Citations</SectionLabel>
-          <CitationsSection versions={sortedVersions} />
-        </section>
+            {program.secondary_context && (
+              <section className="mb-16">
+                <SectionLabel>Additional Context</SectionLabel>
+                <CollapsibleContext content={program.secondary_context} />
+              </section>
+            )}
+
+            {showResources && (
+              <section className="mb-16">
+                <SectionLabel>Internal Resources</SectionLabel>
+                <ResourcesSection resources={resources} />
+              </section>
+            )}
+
+            {sortedVersions.length > 0 && (
+              <section className="mb-16">
+                <SectionLabel>The Record</SectionLabel>
+                <TheRecord versions={sortedVersions} />
+              </section>
+            )}
+
+            <section>
+              <SectionLabel>Citations</SectionLabel>
+              <CitationsSection versions={sortedVersions} />
+            </section>
+          </div>
+        </div>
       </main>
     </div>
   );

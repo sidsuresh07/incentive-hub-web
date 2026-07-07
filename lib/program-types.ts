@@ -1,4 +1,5 @@
 export type ProgramTerms = {
+  stub?: boolean;
   incentive_type?: string;
   value?: {
     type?: string;
@@ -25,6 +26,12 @@ export type Citation = {
   url: string;
 };
 
+export type ReviewStatus =
+  | "pending_review"
+  | "approved"
+  | "auto_published"
+  | "rejected";
+
 export type ProgramVersion = {
   id: string;
   effective_start: string;
@@ -34,8 +41,15 @@ export type ProgramVersion = {
   change_reason: string | null;
   confidence_flag: "high" | "needs_double_verification";
   conflict_notes: string | null;
+  review_status: ReviewStatus;
+  status: string;
   citations: Citation[];
 };
+
+export const PUBLISHED_REVIEW_STATUSES: ReviewStatus[] = [
+  "approved",
+  "auto_published",
+];
 
 export type ProgramDetail = {
   id: string;
@@ -44,7 +58,51 @@ export type ProgramDetail = {
   status: string;
   technology: string[];
   secondary_context: string | null;
-  jurisdictions: { name: string } | null;
+  parent_program_id: string | null;
+  jurisdictions: { name: string; abbreviation: string } | null;
   program_categories: { label: string } | null;
   program_versions: ProgramVersion[];
+};
+
+export type ProgramResourceType =
+  | "form"
+  | "compliance_checklist"
+  | "internal_note"
+  | "box_link"
+  | "other";
+
+export type ProgramResource = {
+  id: string;
+  program_id: string;
+  resource_type: ProgramResourceType;
+  title: string;
+  url: string | null;
+  notes: string | null;
+};
+
+/** One row from the program_hierarchy view (a top-level parent + optional child). */
+export type ProgramHierarchyRow = {
+  parent_id: string;
+  parent_name: string;
+  parent_slug: string;
+  child_id: string | null;
+  child_name: string | null;
+  child_slug: string | null;
+};
+
+export type HierarchyLink = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
+/**
+ * Resolved hierarchy context for a program's detail sidebar.
+ * - parent is null when the program is itself a top-level parent.
+ * - children holds the full set of modules in the family (a parent's children,
+ *   or, for a child page, all of that child's siblings including itself).
+ */
+export type ProgramHierarchy = {
+  parent: HierarchyLink | null;
+  children: HierarchyLink[];
 };

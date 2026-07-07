@@ -396,6 +396,54 @@ function parseDiscoveryJson(text: string): DiscoveryItem[] {
   });
 }
 
+/**
+ * Coerce a value into a clean string array. LLMs occasionally return
+ * list-shaped fields (eligibility.technology, eligibility.sector) as a single
+ * prose sentence; a lone string is wrapped so the value is always an array.
+ */
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    return [value.trim()];
+  }
+  return [];
+}
+
+/**
+ * Guarantee the shape of terms before it is persisted. Today this normalizes
+ * the eligibility list fields (technology, sector) to arrays so downstream
+ * consumers in the web app can safely call array methods on them.
+ */
+function normalizeTerms(
+  terms: Record<string, unknown> | null | undefined
+): Record<string, unknown> | null {
+  if (!terms || typeof terms !== "object" || Array.isArray(terms)) {
+    return terms ?? null;
+  }
+  const next: Record<string, unknown> = { ...terms };
+  const eligibility = next.eligibility;
+  if (
+    eligibility &&
+    typeof eligibility === "object" &&
+    !Array.isArray(eligibility)
+  ) {
+    const elig = { ...(eligibility as Record<string, unknown>) };
+    if ("technology" in elig) {
+      elig.technology = toStringArray(elig.technology);
+    }
+    if ("sector" in elig) {
+      elig.sector = toStringArray(elig.sector);
+    }
+    next.eligibility = elig;
+  }
+  return next;
+}
+
 function parseOnboardJson(text: string): OnboardResponse {
   const jsonText = extractJsonObject(text);
 
@@ -474,7 +522,7 @@ function parseOnboardJson(text: string): OnboardResponse {
     is_interconnection_or_market_rule:
       raw.is_interconnection_or_market_rule === true,
     value_summary: raw.value_summary.trim(),
-    terms: raw.terms as Record<string, unknown>,
+    terms: normalizeTerms(raw.terms as Record<string, unknown>) ?? {},
     niche_notes: asStringOrNull(raw.niche_notes),
     unverified,
     confidence,
@@ -839,7 +887,7 @@ Respond in exactly this shape:
 }
 
 Field rules:
-- new_terms must match the existing structure when changed=true: incentive_type, value, eligibility, stacking_notes, extra
+- new_terms must match the existing structure when changed=true: incentive_type, value, eligibility, stacking_notes, extra. Within eligibility, technology and sector MUST be JSON arrays of short strings (e.g. ["solar", "storage"]), never a prose sentence — put longer descriptive detail in size_limits or stacking_notes.
 - If changed is false: new_value_summary, new_terms, and citation fields must be null; put a one-sentence summary of what you verified in change_reason
 - If changed is true: new_value_summary and new_terms are required; change_reason must explain the material change
 - citation_source_type must be one of: puc_docket, agency_filing, statute, dsire, nrel, law_firm_alert, trade_press, other
@@ -950,7 +998,7 @@ Field rules:
 - secondary_context: deeper background, program history, or interactions with other programs (or null).
 - value_summary: a concise plain-language statement of the headline value/benefit.
 - terms.value should capture type, amount, unit, and cap where applicable.
-- terms.eligibility should capture technology, sector, size_limits, and any income/EJ qualifications.
+- terms.eligibility should capture technology, sector, size_limits, and any income/EJ qualifications. eligibility.technology and eligibility.sector MUST be JSON arrays of short strings (e.g. "technology": ["solar", "storage"], "sector": ["residential", "commercial"]) — never a prose sentence. Put any longer descriptive detail in size_limits or stacking_notes, not inside those arrays.
 - terms.stacking_notes: how this stacks or conflicts with other incentives.
 - niche_notes: edge cases, quirks, and caveats worth recording (or null).
 - is_interconnection_or_market_rule: true only for interconnection or wholesale-market/net-metering style rules, false for incentives.
@@ -1084,7 +1132,7 @@ async function insertPendingDraft(
     [
       current.program_id,
       effectiveStart,
-      JSON.stringify(agent.new_terms),
+      JSON.stringify(normalizeTerms(agent.new_terms)),
       agent.new_value_summary,
       agent.change_reason,
       agent.confidence,
@@ -1425,7 +1473,7 @@ async function insertOnboardedProgram(
       [
         programId,
         effectiveStart,
-        JSON.stringify(agent.terms),
+        JSON.stringify(normalizeTerms(agent.terms)),
         agent.value_summary,
         nicheNotes,
         "Initial onboarding of a new program by agent.",

@@ -16,6 +16,22 @@ function DetailRow({
   );
 }
 
+// Eligibility list fields (technology, sector) are meant to be string arrays,
+// but legacy/agent data occasionally stored a prose string. Render either shape
+// safely: format+join arrays, or show a string verbatim.
+function formatStringList(value: unknown): string | null {
+  if (Array.isArray(value)) {
+    const parts = value.filter(
+      (item): item is string => typeof item === "string" && item.trim().length > 0
+    );
+    return parts.length > 0 ? parts.map(formatLabel).join(", ") : null;
+  }
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+  return null;
+}
+
 function formatEligibility(eligibility: ProgramTerms["eligibility"]): React.ReactNode {
   if (!eligibility) {
     return "—";
@@ -23,13 +39,13 @@ function formatEligibility(eligibility: ProgramTerms["eligibility"]): React.Reac
 
   const items: string[] = [];
 
-  if (eligibility.technology?.length) {
-    items.push(
-      `Technology: ${eligibility.technology.map(formatLabel).join(", ")}`
-    );
+  const technology = formatStringList(eligibility.technology);
+  if (technology) {
+    items.push(`Technology: ${technology}`);
   }
-  if (eligibility.sector?.length) {
-    items.push(`Sector: ${eligibility.sector.map(formatLabel).join(", ")}`);
+  const sector = formatStringList(eligibility.sector);
+  if (sector) {
+    items.push(`Sector: ${sector}`);
   }
   if (eligibility.size_limits) {
     items.push(`Size limits: ${eligibility.size_limits}`);
