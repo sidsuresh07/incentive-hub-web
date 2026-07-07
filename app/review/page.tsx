@@ -14,8 +14,9 @@ export default async function ReviewPage() {
           <SectionLabel>Error</SectionLabel>
           <div className="rounded-2xl bg-white p-8 shadow-lg">
             <p className="font-heading text-lg font-bold text-red-600">
-              Error: {error}
+              Couldn&apos;t load review queue
             </p>
+            <p className="mt-2 text-gray-600">{error}</p>
           </div>
         </main>
       </div>

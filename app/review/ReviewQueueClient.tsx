@@ -23,9 +23,9 @@ export function ReviewQueueClient({
     return (
       <div className="rounded-2xl border border-gray-100 bg-white p-12 text-center shadow-lg">
         <p className="font-heading text-xl font-bold text-heading">
-          Queue caught up!
+          Review queue is clear.
         </p>
-        <p className="mt-2 text-gray-600">No pending reviews.</p>
+        <p className="mt-2 text-gray-600">No drafts awaiting review.</p>
       </div>
     );
   }

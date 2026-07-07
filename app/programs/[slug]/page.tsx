@@ -4,13 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { SectionLabel } from "@/components/SectionLabel";
+import { CitationCard, TheRecord } from "@/components/program/TheRecord";
 import { TermsDisplay } from "@/components/program/TermsDisplay";
-import {
-  formatDate,
-  formatLabel,
-  isRecentlyChanged,
-  STATUS_STYLES,
-} from "@/lib/program-format";
+import { RecentlyChangedIndicator } from "@/components/ui/RecentlyChangedIndicator";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import { VerificationCallout } from "@/components/ui/VerificationCallout";
+import { formatDate, formatLabel, isRecentlyChanged } from "@/lib/program-format";
 import type { ProgramDetail, ProgramVersion } from "@/lib/program-types";
 import { supabase } from "@/lib/supabase";
 
@@ -21,18 +20,6 @@ type FetchError = {
   hint?: string | null;
   extra?: string;
 };
-
-function StatusBadge({ status }: { status: string }) {
-  return (
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${
-        STATUS_STYLES[status] ?? "bg-gray-100 text-gray-600"
-      }`}
-    >
-      {formatLabel(status)}
-    </span>
-  );
-}
 
 function CollapsibleContext({ content }: { content: string }) {
   const [open, setOpen] = useState(false);
@@ -53,64 +40,13 @@ function CollapsibleContext({ content }: { content: string }) {
   );
 }
 
-function VerificationBanner({ conflictNotes }: { conflictNotes?: string | null }) {
-  return (
-    <div className="mb-6 rounded-2xl border-2 border-amber-400 bg-amber-50 px-6 py-5 text-amber-950">
-      <p className="font-heading text-sm font-bold">
-        Part of this information has not been fully verified — see notes below
-      </p>
-      {conflictNotes && (
-        <p className="mt-3 whitespace-pre-wrap text-sm text-amber-900">
-          {conflictNotes}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function VersionTimeline({ versions }: { versions: ProgramVersion[] }) {
-  return (
-    <ol className="relative space-y-0 border-l-2 border-accent/40 pl-8">
-      {versions.map((version, index) => (
-        <li key={version.id} className="relative pb-10 last:pb-0">
-          <span className="absolute -left-[2.35rem] top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent ring-4 ring-white" />
-          <div
-            className={`rounded-2xl border p-6 ${
-              index === 0
-                ? "border-primary/20 bg-primary/5"
-                : "border-gray-100 bg-gray-50"
-            }`}
-          >
-            <p className="font-heading text-sm font-bold text-heading">
-              {formatDate(version.effective_start)} —{" "}
-              {version.effective_end
-                ? formatDate(version.effective_end)
-                : "Present"}
-            </p>
-            <p className="mt-2 font-medium text-gray-600">
-              {version.value_summary}
-            </p>
-            {version.change_reason && (
-              <p className="mt-2 text-sm text-gray-500">
-                {version.change_reason}
-              </p>
-            )}
-          </div>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 function CitationsSection({ versions }: { versions: ProgramVersion[] }) {
   const versionsWithCitations = versions.filter(
     (version) => version.citations?.length > 0
   );
 
   if (versionsWithCitations.length === 0) {
-    return (
-      <p className="text-gray-600">No citations available for this program.</p>
-    );
+    return <p className="text-gray-600">No sources on file.</p>;
   }
 
   return (
@@ -125,32 +61,13 @@ function CitationsSection({ versions }: { versions: ProgramVersion[] }) {
           </p>
           <ul className="space-y-4">
             {version.citations.map((citation) => (
-              <li
+              <CitationCard
                 key={citation.id}
-                className="rounded-2xl border border-gray-100 bg-white p-6 shadow-lg"
-              >
-                <a
-                  href={citation.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-heading font-bold text-primary hover:underline"
-                >
-                  {citation.title}
-                </a>
-                <div className="mt-2 flex flex-wrap gap-2 text-sm text-gray-500">
-                  <span>{formatLabel(citation.source_type)}</span>
-                  <span>·</span>
-                  <span
-                    className={
-                      citation.reliability_tier === "primary"
-                        ? "font-medium text-green-700"
-                        : ""
-                    }
-                  >
-                    {formatLabel(citation.reliability_tier)} source
-                  </span>
-                </div>
-              </li>
+                title={citation.title}
+                url={citation.url}
+                sourceType={citation.source_type}
+                reliabilityTier={citation.reliability_tier}
+              />
             ))}
           </ul>
         </div>
@@ -267,7 +184,7 @@ export default function ProgramPage() {
       <div className="min-h-screen bg-white">
         <main className="mx-auto max-w-4xl px-8 py-16 sm:px-12 sm:py-24">
           <SectionLabel>Loading</SectionLabel>
-          <p className="text-lg text-gray-600">Loading program...</p>
+          <p className="text-lg text-gray-600">Fetching program…</p>
         </main>
       </div>
     );
@@ -278,7 +195,9 @@ export default function ProgramPage() {
       <div className="min-h-screen bg-white">
         <main className="mx-auto max-w-4xl px-8 py-16 sm:px-12 sm:py-24">
           <SectionLabel>Not Found</SectionLabel>
-          <p className="text-lg text-gray-600">Program not found.</p>
+          <p className="text-lg text-gray-600">
+            No program with this identifier.
+          </p>
           <Link
             href="/"
             className="mt-6 inline-block font-heading text-sm font-bold text-primary hover:underline"
@@ -296,17 +215,26 @@ export default function ProgramPage() {
         <main className="mx-auto max-w-4xl px-8 py-16 sm:px-12 sm:py-24">
           <SectionLabel>Error</SectionLabel>
           <div className="rounded-2xl bg-white p-8 shadow-lg">
-            <div className="space-y-2 text-red-600">
-              <p className="font-heading text-lg font-bold">
-                Error: {error?.message ?? "Failed to load program"}
-              </p>
-              {error?.code && <p>Code: {error.code}</p>}
-              {error?.details && <p>Details: {error.details}</p>}
-              {error?.hint && <p>Hint: {error.hint}</p>}
-              {error?.extra && (
-                <pre className="whitespace-pre-wrap text-sm">{error.extra}</pre>
-              )}
-            </div>
+            <p className="font-heading text-lg font-bold text-red-600">
+              Couldn&apos;t load program
+            </p>
+            <p className="mt-2 text-gray-600">
+              {error?.message ?? "Failed to load program"}
+            </p>
+            {error?.code && (
+              <p className="mt-2 text-sm text-gray-500">Code: {error.code}</p>
+            )}
+            {error?.details && (
+              <p className="mt-1 text-sm text-gray-500">Details: {error.details}</p>
+            )}
+            {error?.hint && (
+              <p className="mt-1 text-sm text-gray-500">Hint: {error.hint}</p>
+            )}
+            {error?.extra && (
+              <pre className="mt-4 whitespace-pre-wrap text-sm text-gray-500">
+                {error.extra}
+              </pre>
+            )}
           </div>
         </main>
       </div>
@@ -345,11 +273,7 @@ export default function ProgramPage() {
               </span>
             ))}
             <StatusBadge status={program.status} />
-            {recentlyChanged && (
-              <span className="rounded-full bg-accent/20 px-3 py-1 text-xs font-bold uppercase tracking-wide text-heading">
-                Recently changed
-              </span>
-            )}
+            {recentlyChanged && <RecentlyChangedIndicator />}
           </div>
         </header>
 
@@ -357,9 +281,13 @@ export default function ProgramPage() {
           <section className="mb-16">
             <SectionLabel>Current Terms</SectionLabel>
             {currentVersionNeedsVerification && (
-              <VerificationBanner
-                conflictNotes={currentVersion.conflict_notes}
-              />
+              <VerificationCallout title="Part of this information has not been fully verified — see notes below">
+                {currentVersion.conflict_notes && (
+                  <p className="whitespace-pre-wrap">
+                    {currentVersion.conflict_notes}
+                  </p>
+                )}
+              </VerificationCallout>
             )}
             <div className="rounded-2xl border border-gray-100 bg-white p-8 shadow-lg">
               <p className="font-heading text-2xl font-bold text-heading">
@@ -381,8 +309,8 @@ export default function ProgramPage() {
 
         {sortedVersions.length > 0 && (
           <section className="mb-16">
-            <SectionLabel>Version History</SectionLabel>
-            <VersionTimeline versions={sortedVersions} />
+            <SectionLabel>The Record</SectionLabel>
+            <TheRecord versions={sortedVersions} />
           </section>
         )}
 

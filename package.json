@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "agent:check": "tsx scripts/agent/check-program.ts"
+    "agent:check": "tsx scripts/agent/check-program.ts",
+    "agent:check-all": "tsx scripts/agent/check-program.ts --all",
+    "agent:discover": "tsx scripts/agent/check-program.ts --discover"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

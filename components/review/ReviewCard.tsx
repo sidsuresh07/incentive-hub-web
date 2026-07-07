@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { approveReviewItem, rejectReviewItem } from "@/app/review/actions";
+import { CitationCard } from "@/components/program/TheRecord";
+import { VerificationCallout } from "@/components/ui/VerificationCallout";
 import { formatLabel } from "@/lib/program-format";
 import type { ReviewQueueItem } from "@/lib/review-types";
 
@@ -93,11 +95,10 @@ export function ReviewCard({
       </div>
 
       {item.conflict_notes && (
-        <div className="mt-6 rounded-2xl border-2 border-amber-400 bg-amber-50 px-6 py-5 text-amber-950">
-          <p className="font-heading text-sm font-bold">Conflict notes</p>
-          <p className="mt-2 whitespace-pre-wrap text-sm">
-            {item.conflict_notes}
-          </p>
+        <div className="mt-6">
+          <VerificationCallout title="Conflict notes">
+            <p className="whitespace-pre-wrap">{item.conflict_notes}</p>
+          </VerificationCallout>
         </div>
       )}
 
@@ -131,28 +132,20 @@ export function ReviewCard({
       <div className="mt-8">
         <p className="mb-4 text-sm font-medium text-gray-500">Citations</p>
         {item.citations.length === 0 ? (
-          <p className="text-gray-600">No citations attached to this draft.</p>
+          <p className="rounded-2xl border-2 border-amber-400 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+            This draft has no cited sources. A draft cannot be verified without
+            them.
+          </p>
         ) : (
           <ul className="space-y-3">
             {item.citations.map((citation) => (
-              <li
+              <CitationCard
                 key={citation.id}
-                className="rounded-xl border border-gray-100 bg-white p-4"
-              >
-                <a
-                  href={citation.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-heading font-bold text-primary hover:underline"
-                >
-                  {citation.title}
-                </a>
-                <div className="mt-1 flex flex-wrap gap-2 text-sm text-gray-500">
-                  <span>{formatLabel(citation.source_type)}</span>
-                  <span>·</span>
-                  <span>{formatLabel(citation.reliability_tier)} source</span>
-                </div>
-              </li>
+                title={citation.title}
+                url={citation.url}
+                sourceType={citation.source_type}
+                reliabilityTier={citation.reliability_tier}
+              />
             ))}
           </ul>
         )}
@@ -186,7 +179,7 @@ export function ReviewCard({
             disabled={isLoading}
             className="rounded-full bg-indigo-700 px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-800 disabled:opacity-50"
           >
-            {acting === "approve" ? "Approving..." : "Approve"}
+            {acting === "approve" ? "Approving…" : "Approve"}
           </button>
           <button
             type="button"
@@ -194,7 +187,7 @@ export function ReviewCard({
             disabled={isLoading}
             className="rounded-lg border border-red-200 bg-red-50 px-6 py-2.5 text-sm font-bold text-red-700 transition-colors hover:bg-red-100 disabled:opacity-50"
           >
-            {acting === "reject" ? "Rejecting..." : "Reject"}
+            {acting === "reject" ? "Rejecting…" : "Reject"}
           </button>
         </div>
       </div>

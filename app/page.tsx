@@ -3,7 +3,14 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { SectionLabel } from "@/components/SectionLabel";
+import { RecentlyChangedIndicator } from "@/components/ui/RecentlyChangedIndicator";
+import { isRecentlyChanged } from "@/lib/program-format";
 import { supabase } from "@/lib/supabase";
+
+type ProgramVersionSummary = {
+  effective_start: string;
+  effective_end: string | null;
+};
 
 type Program = {
   id: string;
@@ -13,6 +20,7 @@ type Program = {
   technology: string[];
   program_categories: { label: string } | null;
   jurisdictions: { name: string } | null;
+  program_versions: ProgramVersionSummary[];
 };
 
 type FetchError = {
@@ -114,7 +122,8 @@ export default function Home() {
             category,
             technology,
             program_categories ( label ),
-            jurisdictions ( name )
+            jurisdictions ( name ),
+            program_versions ( effective_start, effective_end )
           `
           );
 
@@ -218,7 +227,7 @@ export default function Home() {
       <div className="min-h-screen bg-white">
         <main className="mx-auto max-w-6xl px-8 py-16 sm:px-12 sm:py-24">
           <SectionLabel>Loading</SectionLabel>
-          <p className="text-lg text-gray-600">Loading programs...</p>
+          <p className="text-lg text-gray-600">Fetching programs…</p>
         </main>
       </div>
     );
@@ -230,17 +239,22 @@ export default function Home() {
         <main className="mx-auto max-w-6xl px-8 py-16 sm:px-12 sm:py-24">
           <SectionLabel>Error</SectionLabel>
           <div className="rounded-2xl bg-white p-8 shadow-lg">
-            <div className="space-y-2 text-red-600">
-              <p className="font-heading text-lg font-bold">
-                Error: {error.message}
-              </p>
-              {error.code && <p>Code: {error.code}</p>}
-              {error.details && <p>Details: {error.details}</p>}
-              {error.hint && <p>Hint: {error.hint}</p>}
-              {error.extra && (
-                <pre className="whitespace-pre-wrap text-sm">{error.extra}</pre>
-              )}
-            </div>
+            <p className="font-heading text-lg font-bold text-red-600">
+              Couldn&apos;t load programs
+            </p>
+            <p className="mt-2 text-gray-600">{error.message}</p>
+            {error.code && <p className="mt-2 text-sm text-gray-500">Code: {error.code}</p>}
+            {error.details && (
+              <p className="mt-1 text-sm text-gray-500">Details: {error.details}</p>
+            )}
+            {error.hint && (
+              <p className="mt-1 text-sm text-gray-500">Hint: {error.hint}</p>
+            )}
+            {error.extra && (
+              <pre className="mt-4 whitespace-pre-wrap text-sm text-gray-500">
+                {error.extra}
+              </pre>
+            )}
           </div>
         </main>
       </div>
@@ -340,31 +354,43 @@ export default function Home() {
             <div className="rounded-2xl bg-white p-12 text-center shadow-lg">
               <p className="text-lg text-gray-600">
                 {programs.length === 0
-                  ? "No programs found."
-                  : "No programs match your filters."}
+                  ? "No programs in the catalog yet."
+                  : "No programs match these filters."}
               </p>
             </div>
           ) : (
             <ul className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredPrograms.map((program) => (
-                <li
-                  key={program.id}
-                  className="rounded-2xl border border-gray-100 bg-white p-8 shadow-lg transition-shadow hover:shadow-xl"
-                >
-                  <p className="text-sm font-medium uppercase tracking-wider text-primary">
-                    {program.program_categories?.label ?? program.category}
-                  </p>
-                  <h2 className="mt-3 font-heading text-xl font-bold text-heading">
-                    {program.name}
-                  </h2>
-                  <Link
-                    href={`/programs/${program.slug}`}
-                    className="mt-6 inline-block rounded-full bg-indigo-700 px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-800"
+              {filteredPrograms.map((program) => {
+                const currentVersion = program.program_versions?.find(
+                  (version) => version.effective_end === null
+                );
+                const recentlyChanged = currentVersion
+                  ? isRecentlyChanged(currentVersion.effective_start)
+                  : false;
+
+                return (
+                  <li
+                    key={program.id}
+                    className="rounded-2xl border border-gray-100 bg-white p-8 shadow-lg transition-shadow hover:shadow-xl"
                   >
-                    View Details
-                  </Link>
-                </li>
-              ))}
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-sm font-medium uppercase tracking-wider text-primary">
+                        {program.program_categories?.label ?? program.category}
+                      </p>
+                      {recentlyChanged && <RecentlyChangedIndicator />}
+                    </div>
+                    <h2 className="mt-3 font-heading text-xl font-bold text-heading">
+                      {program.name}
+                    </h2>
+                    <Link
+                      href={`/programs/${program.slug}`}
+                      className="mt-6 inline-block rounded-full bg-indigo-700 px-6 py-2.5 text-sm font-bold text-white transition-colors hover:bg-indigo-800"
+                    >
+                      View Details
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </section>
