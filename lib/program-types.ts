@@ -71,6 +71,14 @@ export type ProgramResourceType =
   | "box_link"
   | "other";
 
+export type ProgramNote = {
+  id: string;
+  program_id: string;
+  author_name: string;
+  note_text: string;
+  created_at: string;
+};
+
 export type ProgramResource = {
   id: string;
   program_id: string;

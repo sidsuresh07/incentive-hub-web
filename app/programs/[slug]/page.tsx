@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { SectionLabel } from "@/components/SectionLabel";
 import { HierarchySidebar } from "@/components/program/HierarchySidebar";
 import { ResourcesSection } from "@/components/program/ResourcesSection";
+import { TeamNotesSection } from "@/components/program/TeamNotesSection";
 import { CitationCard, TheRecord } from "@/components/program/TheRecord";
 import { TermsDisplay } from "@/components/program/TermsDisplay";
 import { RecentlyChangedIndicator } from "@/components/ui/RecentlyChangedIndicator";
@@ -21,11 +22,11 @@ import {
   type ProgramResource,
   type ProgramVersion,
 } from "@/lib/program-types";
+import { supabase } from "@/lib/supabase";
 
 function isPublishedVersion(version: ProgramVersion): boolean {
   return PUBLISHED_REVIEW_STATUSES.includes(version.review_status);
 }
-import { supabase } from "@/lib/supabase";
 
 type FetchError = {
   message: string;
@@ -340,11 +341,7 @@ export default function ProgramPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <main
-        className={`mx-auto ${
-          showSidebar ? "max-w-6xl" : "max-w-4xl"
-        } px-8 py-16 sm:px-12 sm:py-24`}
-      >
+      <main className="mx-auto max-w-7xl px-8 py-16 sm:px-12 sm:py-24">
         <Link
           href="/"
           className="mb-8 inline-block font-heading text-sm font-bold text-primary hover:underline"
@@ -352,14 +349,15 @@ export default function ProgramPage() {
           ← Back to Programs
         </Link>
 
-        <div className={showSidebar ? "lg:flex lg:gap-12" : ""}>
+        <div className="lg:flex lg:items-start lg:gap-10">
           {showSidebar && hierarchy && (
-            <div className="mb-10 lg:mb-0 lg:w-72 lg:shrink-0">
+            <div className="mb-10 lg:mb-0 lg:w-56 lg:shrink-0">
               <HierarchySidebar hierarchy={hierarchy} currentSlug={program.slug} />
             </div>
           )}
 
-          <div className={showSidebar ? "min-w-0 lg:flex-1" : ""}>
+          <div className="min-w-0 flex-1 lg:flex lg:gap-10">
+            <div className="min-w-0 flex-1">
             <header className="mb-16">
               <SectionLabel>
                 {program.program_categories?.label ?? "Program"}
@@ -439,8 +437,12 @@ export default function ProgramPage() {
 
             {showResources && (
               <section className="mb-16">
-                <SectionLabel>Internal Resources</SectionLabel>
-                <ResourcesSection resources={resources} />
+                <SectionLabel>Documents &amp; Forms</SectionLabel>
+                <ResourcesSection
+                  programId={program.id}
+                  resources={resources}
+                  onResourcesChange={setResources}
+                />
               </section>
             )}
 
@@ -455,6 +457,11 @@ export default function ProgramPage() {
               <SectionLabel>Citations</SectionLabel>
               <CitationsSection versions={sortedVersions} />
             </section>
+            </div>
+
+            <div className="mt-12 w-full lg:mt-0 lg:w-56 lg:shrink-0">
+              <TeamNotesSection programId={program.id} />
+            </div>
           </div>
         </div>
       </main>

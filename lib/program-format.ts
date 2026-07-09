@@ -42,6 +42,34 @@ export function formatValue(value: ProgramTerms["value"]): string {
   return amount;
 }
 
+export function formatRelativeTime(isoDate: string): string {
+  const date = new Date(isoDate);
+  const diffMs = Date.now() - date.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHour = Math.floor(diffMin / 60);
+  const diffDay = Math.floor(diffHour / 24);
+
+  if (diffSec < 60) {
+    return "just now";
+  }
+  if (diffMin < 60) {
+    return diffMin === 1 ? "1 minute ago" : `${diffMin} minutes ago`;
+  }
+  if (diffHour < 24) {
+    return diffHour === 1 ? "1 hour ago" : `${diffHour} hours ago`;
+  }
+  if (diffDay < 30) {
+    return diffDay === 1 ? "1 day ago" : `${diffDay} days ago`;
+  }
+
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export function isRecentlyChanged(effectiveStart: string): boolean {
   const start = new Date(`${effectiveStart}T00:00:00`);
   const thirtyDaysAgo = new Date();

@@ -246,17 +246,46 @@ export default function JurisdictionPage() {
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [filteredPrograms]);
 
-  function toggleTechnology(value: string) {
-    setSelectedTechnologies((current) => {
-      const next = new Set(current);
-      if (next.has(value)) {
-        next.delete(value);
-      } else {
-        next.add(value);
-      }
-      return next;
-    });
+function toggleTechnology(value: string) {
+  setSelectedTechnologies((current) => {
+    const next = new Set(current);
+    if (next.has(value)) {
+      next.delete(value);
+    } else {
+      next.add(value);
+    }
+    return next;
+  });
+}
+
+/** Size each category cluster to its program count on the outer grid. */
+function categoryClusterLayout(programCount: number): {
+  cluster: string;
+  cards: string;
+} {
+  if (programCount >= 4) {
+    return {
+      cluster: "col-span-full",
+      cards: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+    };
   }
+  if (programCount === 3) {
+    return {
+      cluster: "md:col-span-2",
+      cards: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+    };
+  }
+  if (programCount === 2) {
+    return {
+      cluster: "sm:col-span-2",
+      cards: "grid-cols-1 sm:grid-cols-2",
+    };
+  }
+  return {
+    cluster: "",
+    cards: "grid-cols-1",
+  };
+}
 
   if (loading) {
     return (
@@ -368,34 +397,40 @@ export default function JurisdictionPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-16">
-            {categorySections.map((section) => (
-              <section key={section.slug}>
-                <SectionLabel>{section.label}</SectionLabel>
-                <ul className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-                  {section.programs.map((program) => {
-                    const currentVersion = currentVersionOf(program);
-                    return (
-                      <ProgramCard
-                        key={program.id}
-                        name={program.name}
-                        slug={program.slug}
-                        categoryLabel={
-                          program.program_categories?.label ?? program.category
-                        }
-                        recentlyChanged={
-                          currentVersion
-                            ? isRecentlyChanged(currentVersion.effective_start)
-                            : false
-                        }
-                        isStub={currentVersion?.terms?.stub === true}
-                        childCount={childCountByParent.get(program.id) ?? 0}
-                      />
-                    );
-                  })}
-                </ul>
-              </section>
-            ))}
+          <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),1fr))] gap-x-8 gap-y-12">
+            {categorySections.map((section) => {
+              const layout = categoryClusterLayout(section.programs.length);
+              return (
+                <section
+                  key={section.slug}
+                  className={`min-w-0 ${layout.cluster}`}
+                >
+                  <SectionLabel>{section.label}</SectionLabel>
+                  <ul className={`grid gap-8 ${layout.cards}`}>
+                    {section.programs.map((program) => {
+                      const currentVersion = currentVersionOf(program);
+                      return (
+                        <ProgramCard
+                          key={program.id}
+                          name={program.name}
+                          slug={program.slug}
+                          categoryLabel={
+                            program.program_categories?.label ?? program.category
+                          }
+                          recentlyChanged={
+                            currentVersion
+                              ? isRecentlyChanged(currentVersion.effective_start)
+                              : false
+                          }
+                          isStub={currentVersion?.terms?.stub === true}
+                          childCount={childCountByParent.get(program.id) ?? 0}
+                        />
+                      );
+                    })}
+                  </ul>
+                </section>
+              );
+            })}
           </div>
         )}
       </main>
