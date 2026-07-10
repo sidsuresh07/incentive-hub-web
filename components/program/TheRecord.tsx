@@ -44,11 +44,12 @@ function RecordMarker({
 export function TheRecord({ versions }: { versions: ProgramVersion[] }) {
   return (
     <ol className="relative space-y-0">
-      {versions.map((version, index) => {
-        const isCurrent = index === 0;
+      {versions.map((version) => {
+        const isCurrent = version.effective_end === null;
         const needsVerification =
           version.confidence_flag === "needs_double_verification";
         const isSuperseded = !isCurrent;
+        const activeVerification = needsVerification && isCurrent;
 
         return (
           <li
@@ -59,12 +60,12 @@ export function TheRecord({ versions }: { versions: ProgramVersion[] }) {
           >
             <RecordMarker
               isCurrent={isCurrent}
-              needsVerification={needsVerification}
+              needsVerification={activeVerification}
             />
 
             <div
               className={`rounded-2xl border p-6 ${
-                needsVerification
+                activeVerification
                   ? "border-amber-400 border-l-[3px] bg-amber-50/50"
                   : isCurrent
                     ? "border-primary/20 bg-primary/5"
@@ -72,18 +73,25 @@ export function TheRecord({ versions }: { versions: ProgramVersion[] }) {
               }`}
             >
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <p className="font-heading text-sm font-bold text-heading">
-                  {formatDate(version.effective_start)} —{" "}
-                  {version.effective_end
-                    ? formatDate(version.effective_end)
-                    : "Present"}
-                </p>
+                <div>
+                  <p className="font-heading text-sm font-bold text-heading">
+                    {formatDate(version.effective_start)} —{" "}
+                    {version.effective_end
+                      ? formatDate(version.effective_end)
+                      : "Present"}
+                  </p>
+                  {needsVerification && isSuperseded && (
+                    <p className="mt-0.5 text-xs text-gray-400">
+                      Was flagged for review
+                    </p>
+                  )}
+                </div>
                 {isCurrent && (
                   <span className="text-xs font-bold uppercase tracking-wide text-accent">
                     Current
                   </span>
                 )}
-                {needsVerification && (
+                {activeVerification && (
                   <span className="text-xs font-bold uppercase tracking-wide text-amber-800">
                     Needs review
                   </span>
